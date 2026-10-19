@@ -23,7 +23,7 @@ canvas{display:block;position:fixed;left:0;top:0;width:100%;height:100%}
 const c=document.getElementById('c'),g=c.getContext('2d'),$=id=>document.getElementById(id),R=Math.random,TAU=Math.PI*2,PI=Math.PI;
 const CL=(v,a,b)=>v<a?a:v>b?b:v,LERP=(a,b,k)=>a+(b-a)*k,PICK=a=>a[Math.floor(R()*a.length)],HYP=Math.hypot;
 const QS=new URLSearchParams(location.search);
-let DPR=1,CW=0,CH=0;function resizeCanvas(){DPR=Math.min(devicePixelRatio||1,3);CW=c.width=Math.round(innerWidth*DPR);CH=c.height=Math.round(innerHeight*DPR);if(window.onResize)onResize()}
+let SAFE={t:0,r:0,b:0,l:0};function readSafe(){try{if(window.__SAFE){SAFE=Object.assign({t:0,r:0,b:0,l:0},window.__SAFE);return}const d=document.createElement('div');d.style.cssText='position:fixed;top:0;left:0;width:0;height:0;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';document.body.appendChild(d);const cs=getComputedStyle(d);SAFE={t:parseFloat(cs.paddingTop)||0,r:parseFloat(cs.paddingRight)||0,b:parseFloat(cs.paddingBottom)||0,l:parseFloat(cs.paddingLeft)||0};d.remove()}catch(e){}}let DPR=1,CW=0,CH=0;function resizeCanvas(){DPR=Math.min(devicePixelRatio||1,3);readSafe();CW=c.width=Math.round(innerWidth*DPR);CH=c.height=Math.round(innerHeight*DPR);if(window.onResize)onResize()}
 addEventListener('resize',resizeCanvas);
 // ---------- storage
 const ST={get(k,d){try{const v=localStorage.getItem(GAME_ID+':'+k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(GAME_ID+':'+k,JSON.stringify(v))}catch(e){}}};
@@ -322,8 +322,8 @@ function bestSet(o){const air=!!save.up.air;if(o.op=='E'){const b=LC.bestEngrave
 function buy(u){if(save.up[u.k]||save.cash<u.cost||(u.need&&!save.up[u.need]))return;save.cash-=u.cost;save.up[u.k]=1;ST.set('save',save);cash();say(u.ic+' '+u.n+' installed!','#b8ffb0');
  if(u.k=='rotary')for(const o of orders)o.needRot=0;if(set_)set_.sp=CL(set_.sp,1,MAXSP())}
 // ===================== UPDATE =====================
-function say(s,col='#fff',dur=2.2){floats.push({s,col,t:0,dur});if(floats.length>3)floats.shift()}
-function update(dt){GT+=dt;for(const f of floats)f.t+=dt;floats=floats.filter(f=>f.t<f.dur);
+function say(s,col='#fff',dur=2.2){if(floats.some(f=>f.s==s))return;floats.push({s,col,t:0,dur});if(floats.length>3)floats.splice(1,1)}
+function update(dt){GT+=dt;if(floats.length){const f=floats[0];f.t+=dt*(floats.length>1?1.6:1)}floats=floats.filter(f=>f.t<f.dur);
  for(const p of parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=(p.g||0)*dt;p.t+=dt}parts=parts.filter(p=>p.t<p.life);
  if(state=='shop'&&wait!=null){const na=nextArrival();const step=dt*90;if(na==null||clock+step>=Math.min(na,LC.DAY_END)){clock=na==null?LC.DAY_END:Math.min(na,LC.DAY_END);wait=null;arrivals();checkEnd()}else clock+=step}
  if(state=='run'&&run){const k=ff?3:1;run.t+=dt*k;const p=CL(run.t/run.dur,0,1);clock=run.c0+run.min*p;run.buzz-=dt;
@@ -350,7 +350,7 @@ function jingle(){[72,76,79,84].forEach((n,i)=>tone(NOTE(n),.16,'triangle',.13,0
 function sad(){tone(392,.2,'triangle',.12,300);tone(311,.35,'triangle',.12,220,.2)}
 function fanfare(){[67,72,76,79,76,79,84].forEach((n,i)=>tone(NOTE(n),.2,'square',.07,0,i*.11))}
 // ===================== RENDER HELPERS =====================
-function onResize(){VW=CW/DPR;VH=CH/DPR;SC=Math.min(VW/LW,VH/LH);OXs=(VW-LW*SC)/2;OYs=(VH-LH*SC)/2}
+function onResize(){VW=CW/DPR;VH=CH/DPR;const aw=VW-SAFE.l-SAFE.r,ah=VH-SAFE.t-SAFE.b;SC=Math.min(aw/LW,ah/LH);OXs=SAFE.l+(aw-LW*SC)/2;OYs=SAFE.t+(ah-LH*SC)/2}
 function toL(px,py){return[(px-OXs)/SC,(py-OYs)/SC]}
 function btn(x,y,w,h,label,fn,col='#e8542a',fs=15,dis){menuBtns.push({x,y,w,h,fn:dis?()=>{}:fn});g.globalAlpha=dis?.45:1;g.fillStyle=col;rrect(g,x,y,w,h,10);g.fill();g.strokeStyle='rgba(255,255,255,.85)';g.lineWidth=1.6;g.stroke();g.fillStyle='#fff';g.font='bold '+fs+'px "Trebuchet MS",sans-serif';g.textAlign='center';g.fillText(label,x+w/2,y+h/2+fs*.36);g.globalAlpha=1}
 function wrapT(s,x,y,w,lh,draw=true){const words=s.split(' ');let line='',n=0;for(const wd of words){const t=line?line+' '+wd:wd;if(g.measureText(t).width>w&&line){if(draw)g.fillText(line,x,y+n*lh);n++;line=wd}else line=t}if(line){if(draw)g.fillText(line,x,y+n*lh);n++}return n}
@@ -375,7 +375,8 @@ function drawCutResult(o,ev,P,x,y,s,through){const cx=x+s/2,cy=y+s/2,sc=s*.38;g.
   g.save();g.translate(s*.025,-s*.03);cutPath(P,cx,cy,sc);g.strokeStyle=ch;g.globalAlpha=.35+charK*.65;g.lineWidth=1+charK*s*.025;g.stroke();if(ev&&ev.melt){g.strokeStyle='rgba(255,255,255,.4)';g.lineWidth=s*.015;g.stroke()}g.restore()}
  else{cutPath(P,cx,cy,sc);g.strokeStyle='#2a1a10';g.globalAlpha=.85;g.lineWidth=Math.max(1.2,s*.012);g.stroke();g.globalAlpha=1}}
 function topBar(){g.fillStyle='rgba(0,0,0,.4)';g.fillRect(0,56,LW,40);txt('Day '+day,10,82,16,'#ffd8a0','left','bold');txt('🕘 '+fmtT(clock),78,82,15,clock>LC.DAY_END-60?'#ff9a7a':'#fff','left','bold');txt((save.cash<0?'-$':'$')+fmt(Math.abs(save.cash)),250,82,15,save.cash<0?'#ff9a7a':'#b8ffb0','left','bold');repStars(318,82)}
-function drawFloats(y0=110){let i=0;for(const f of floats){const a=CL(Math.min(f.t*4,(f.dur-f.t)*2),0,1);g.globalAlpha=a;g.font='bold 13px sans-serif';const w=g.measureText(f.s).width+20;g.fillStyle='rgba(0,0,0,.72)';rrect(g,200-w/2,y0+i*28,w,24,12);g.fill();g.fillStyle=f.col;g.textAlign='center';g.fillText(f.s,200,y0+i*28+16.5);g.globalAlpha=1;i++}}
+// toasts: ONE dedicated slot over the status bar (y 56-96), queued, so they never cover the customer's request or controls
+const TOASTR=[8,58,384,36];function drawFloats(){const f=floats[0];if(!f)return;const a=CL(Math.min(f.t*5,(f.dur-f.t)*3),0,1);g.globalAlpha=a;g.fillStyle='rgba(20,12,10,.96)';rrect(g,...TOASTR,12);g.fill();g.strokeStyle=f.col;g.lineWidth=1.5;g.stroke();g.font='bold 13px sans-serif';if(g.measureText(f.s).width>364)g.font='bold 11px sans-serif';g.fillStyle=f.col;g.textAlign='center';g.fillText(f.s,200,TOASTR[1]+23);g.globalAlpha=1}
 function drawParts(){for(const p of parts){const k=1-p.t/p.life;if(p.c=='smoke'){g.fillStyle='rgba(200,200,200,'+(.25*k)+')';g.beginPath();g.arc(p.x,p.y,p.s*(2-k),0,TAU);g.fill()}else if(p.c=='spark'){g.fillStyle='rgba(255,220,120,'+k+')';g.fillRect(p.x,p.y,p.s,p.s)}else{g.fillStyle='rgba(255,'+Math.floor(120+120*k)+',40,'+k+')';g.beginPath();g.arc(p.x,p.y,p.s*k,0,TAU);g.fill()}}}
 function orderLine(o){return o.op=='E'?(o.photo?'Photo-engrave':'Engrave')+' · '+M[o.mat].n+' '+o.item+' · '+o.size+' mm':'Cut '+o.count+'× '+o.shape+' · '+o.th+' mm '+M[o.mat].n+' · '+o.size+' mm'}
 function requestText(o){const pn={paw:'a paw print',heart:'a heart',star:'a star',name:'our family name',monogram:'a monogram',mountain:'mountains',tree:'a pine tree',anchor:'an anchor',house:'our house',sun:'a sunshine',fish:'a fish',cactus:'a cactus',guitar:'a guitar',compass:'a compass rose',dogphoto:'a photo of my dog',catphoto:'a photo of my cat',portrait:'a portrait of Grandpa',sunset:'our beach sunset photo'};
@@ -409,7 +410,7 @@ function drawShop(){topBar();
  if(na!=null&&!openOrders().length)btn(136,662,128,44,wait!=null?'Waiting…':'⏩ Wait',()=>{wait=1},'#3a7a5a',14);else btn(136,662,128,44,'📖 Settings',()=>showBinder(),'#3a5a7a',14);
  btn(272,662,120,44,'🏁 Close Shop',()=>{if(openOrders().filter(o=>!o.needRot).length)panel('<h2>Close early?</h2><p>Customers still waiting will leave unhappy (−reputation).</p><p><b>Tap ✕ to keep working</b>, or use the button below.</p><p><button onclick="document.getElementById(\'pclose\').click();setTimeout(endDay,50)" style="font-size:18px;padding:8px 16px">Close the shop</button></p>');else endDay()},'#7a4a3a',14);
  const opn=openOrders();const rot=opn.filter(o=>o.needRot);if(rot.length&&state=='shop'){}
- drawFloats(104)}
+ drawFloats()}
 function slider(key,label,x,y,w,min,max,val,fmtv,log){const f=log?Math.log(val/min)/Math.log(max/min):(val-min)/(max-min);txt(label,x,y-6,12,'#ffd8a0','left','bold');txt(fmtv(val),x+w,y-6,13,'#fff','right','bold');
  g.fillStyle='rgba(255,255,255,.15)';rrect(g,x,y,w,8,4);g.fill();g.fillStyle='#e8542a';rrect(g,x,y,w*CL(f,0,1),8,4);g.fill();g.fillStyle='#fff';g.beginPath();g.arc(x+w*CL(f,0,1),y+4,10,0,TAU);g.fill();g.strokeStyle='#e8542a';g.lineWidth=3;g.stroke();
  sliders.push({key,x,y,w,min,max,log})}
@@ -434,7 +435,7 @@ function drawSetup(){topBar();const o=cur,s=set_;
  const E=LC.energy(W(),s.pw,s.sp),mins=jobMin(o,s);txt('Energy '+(E<.1?E.toFixed(3):E.toFixed(2))+' J/mm × '+s.ps+' pass'+(s.ps>1?'es':'')+'  ·  job ≈ '+Math.round(mins)+' min',200,ry+52,11.5,'#ccc','center');
  btn(8,590,124,42,'🧪 Test card',()=>runTest(),'#5a7a3a',13);btn(138,590,124,42,'📒 Notebook',()=>useBook(),save.book[bookKey(o)]?'#7a6a2a':'#4a4a40',13);btn(268,590,124,42,'◀ Back',()=>{state='shop';cur=null},'#5a4a44',13);
  btn(8,640,384,62,'🔴 FIRE THE LASER',()=>fire(),'#e8542a',20,!canFire());
- if(testCard)drawTestCard();drawFloats(104)}
+ if(testCard)drawTestCard();drawFloats()}
 const pvCache={};function previewCanvas(o){const k=o.pic+o.txt;if(pvCache[k])return pvCache[k];const cv=document.createElement('canvas');cv.width=cv.height=PN;const x=cv.getContext('2d'),im=x.createImageData(PN,PN),m=picMask(o.pic,o.txt);for(let i=0;i<PN*PN;i++){im.data[i*4]=im.data[i*4+1]=im.data[i*4+2]=20;im.data[i*4+3]=m[i]*255}x.putImageData(im,0,0);return pvCache[k]=cv}
 function drawTestCard(){const T=testCard;g.fillStyle='rgba(10,8,6,.94)';rrect(g,6,100,388,500,14);g.fill();g.strokeStyle='#ffb070';g.lineWidth=2;g.stroke();txt('🧪 Material test card — '+M[cur.mat].n,200,124,14,'#ffb070','center','bold');txt('Tap the square that looks best to use its settings.',200,142,11.5,'#ccc','center');
  const cw=70,chh=118,x0=200-T.cols*cw/2;for(let j=0;j<T.rows;j++)for(let i=0;i<T.cols;i++){const c=T.cells[j*T.cols+i],x=x0+i*cw,y=156+j*chh;
@@ -454,7 +455,7 @@ function drawRun(){topBar();const r=run,o=r.o,p=CL(r.t/r.dur,0,1);
  g.fillStyle='rgba(0,0,0,.4)';g.fillRect(0,RV.y+RV.s+36,LW,70);txt((o.op=='E'?'Engraving line by line… ':'Cutting… ')+Math.floor(p*100)+'%',200,RV.y+RV.s+60,16,'#fff','center','bold');
  txt(r.s.pw+'% · '+r.s.sp+' mm/s · focus '+(r.s.f>0?'+':'')+r.s.f.toFixed(1)+' · '+r.s.ps+'×'+(r.s.air&&save.up.air?' · 💨':''),200,RV.y+RV.s+82,12,'#ccc','center');
  g.fillStyle='rgba(255,255,255,.15)';g.fillRect(40,RV.y+RV.s+92,320,6);g.fillStyle='#e8542a';g.fillRect(40,RV.y+RV.s+92,320*p,6);
- btn(30,640,160,52,ff?'⏩ Fast: ON':'⏩ Fast',()=>{ff=!ff},ff?'#a87a2a':'#5a5a44',15);btn(210,640,160,52,'✋ Stop job',()=>abortRun(),'#7a3a3a',15);drawFloats(104)}
+ btn(30,640,160,52,ff?'⏩ Fast: ON':'⏩ Fast',()=>{ff=!ff},ff?'#a87a2a':'#5a5a44',15);btn(210,640,160,52,'✋ Stop job',()=>abortRun(),'#7a3a3a',15);drawFloats()}
 const REACT={faint:'It’s so faint I can barely see it…',light:'It’s a little light. Could be darker.',char:'Ooh — the edges are scorched brown.',burnthrough:'There are holes burned right through it!',melt:'It looks melted and bubbly, not frosted.',chips:'The glass is chipped and cracked!',glaze:'The slate looks dull and glazed, not crisp gray.',flare:'Was that a FIRE?! There are scorch marks!',soot:'There’s sooty smudging around the design.',blurry:'It’s kinda blurry. Was the focus off?',glassfocus:'The frosting is a bit rough and chippy.',nocut:'It didn’t cut through at all!',partial:'I had to snap the pieces out…',charedge:'The cut edges are really charred.',meltedge:'The edges are melted and gooey.',flashback:'Little scorch marks on the back, but OK.',kerf:'The edges are wide and slanted — focus?'};
 function larryNote(o,ev){if(o.op=='E'){const Mt=M[o.mat];const lo=Mt.lo*(o.photo?1.12:1),hi=o.photo?Math.max(lo+.2,Mt.hi*.88):Mt.hi;
   if(ev.issues.includes('blurry'))return'Check your focus — '+(o.mat=='glass'?'glass likes about +1.5 mm.':'0 mm is sharpest.');if(ev.issues.includes('glassfocus'))return'Defocus a little (+1 to +2 mm) for a smoother frost.';
@@ -470,11 +471,11 @@ function drawResult(){topBar();const r=res,o=r.o,ev=r.ev;g.fillStyle='rgba(0,0,0
  txt('Material used: $'+o.mcost.toFixed(2)+(o.tries>1?' × '+o.tries:''),30,y2+66,11.5,'#999');
  if(r.late)txt('⏰ Missed the rush deadline — no tip, 60% pay.',200,y2+90,12,'#ff9a7a','center','bold');
  const canRedo=r.gr!='A'&&clock<LC.DAY_END;btn(24,560,canRedo?172:352,52,r.gr=='F'?'Give it back (free)':'🤝 Hand it over · $'+(r.pay+r.tip),()=>handOver(),'#2e8b57',15);
- if(canRedo)btn(204,560,172,52,'↻ Redo it',()=>redo(),'#a8642a',15);txt(canRedo?'Redo costs material and time, but happy customers tip & boost your ★ reputation.':'',200,630,10.5,'#aaa','center');drawFloats(104)}
+ if(canRedo)btn(204,560,172,52,'↻ Redo it',()=>redo(),'#a8642a',15);txt(canRedo?'Redo costs material and time, but happy customers tip & boost your ★ reputation.':'',200,630,10.5,'#aaa','center');drawFloats()}
 function drawUpgrades(){txt('🔧 UPGRADES',200,90,22,'#ffb070','center','bold');txt('Cash $'+fmt(save.cash),200,114,15,'#b8ffb0','center','bold');
  UPG.forEach((u,i)=>{const y=128+i*70,own=save.up[u.k],lock=u.need&&!save.up[u.need],can=!own&&!lock&&save.cash>=u.cost;g.fillStyle=own?'rgba(80,200,120,.16)':'rgba(255,255,255,.08)';rrect(g,10,y,380,62,10);g.fill();txt(u.ic,34,y+38,24,'#fff','center');txt(u.n,60,y+24,15,'#fff','left','bold');g.fillStyle='#ccc';g.font='11.5px sans-serif';g.textAlign='left';wrapT(u.d,60,y+41,220,13);
   if(own)txt('Installed ✓',380,y+37,13,'#8ae8a0','right','bold');else btn(292,y+14,90,34,lock?'🔒 60W first':'$'+u.cost,()=>buy(u),can?'#e8542a':'#4a4a50',lock?11:14,!can)});
- btn(100,632,200,48,'◀ Back',()=>{state=upFrom},'#5a4a44',16);drawFloats(110)}
+ btn(100,632,200,48,'◀ Back',()=>{state=upFrom},'#5a4a44',16);drawFloats()}
 function drawDaySum(){const r=res;g.fillStyle='rgba(0,0,0,.4)';rrect(g,16,90,368,560,16);g.fill();txt('Day '+day+' — Closing Time',200,128,20,'#ffb070','center','bold');stars(140,172,r.stars,34);
  txt('Earned today: $'+Math.round(earned),200,214,17,'#b8ffb0','center','bold');txt('Goal $'+r.goal+'  ·  ★★ $'+Math.ceil(r.goal*1.25)+'  ·  ★★★ every job an A, none late',200,236,11.5,'#ccc','center');
  dayLog.slice(0,9).forEach((l,i)=>{txt(l.name,60,272+i*22,13,'#fff');txt(l.gr+(l.late?' (late)':''),230,272+i*22,13,l.gr=='A'?'#ffd84a':'#ccc','center','bold');txt('$'+l.pay,340,272+i*22,13,'#b8ffb0','right')});
@@ -526,7 +527,7 @@ $('help').onclick=e=>{e.stopPropagation();const wasP=paused;if(!paused&&state!='
 let lastT=0;function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-lastT)/1000||0);lastT=now;if(!paused&&!panelOpen)update(dt);render()}
 resizeCanvas();chrome(true);
 if(QS.has('day')){const d=CL(parseInt(QS.get('day')),1,NDAY);save.day=Math.max(save.day,d);setTimeout(()=>startDay(d),50)}
-window.__T={get:()=>({state,day,clock,cash:save.cash,rep:save.rep,earned,orders:orders.map(o=>({st:o.st,op:o.op,mat:o.mat,gr:o.gr,rush:o.rush,needRot:o.needRot})),res:res&&{gr:res.gr,score:res.score,issues:res.ev&&res.ev.issues,pay:res.pay,tip:res.tip,stars:res.stars},cur:cur&&cur.id}),
+window.__T={say,get:()=>({state,day,clock,cash:save.cash,rep:save.rep,earned,orders:orders.map(o=>({st:o.st,op:o.op,mat:o.mat,gr:o.gr,rush:o.rush,needRot:o.needRot})),res:res&&{gr:res.gr,score:res.score,issues:res.ev&&res.ev.issues,pay:res.pay,tip:res.tip,stars:res.stars},cur:cur&&cur.id}),
  startDay,openOrder:i=>openOrder(orders[i]),orders:()=>orders,set:o=>Object.assign(set_,o),fire,update,handOver,redo,bestSet:i=>bestSet(orders[i]),endDay,runTest,tc:()=>testCard,setState:s=>state=s,save:()=>save,wait:()=>{wait=1},buy:k=>buy(UPG.find(u=>u.k==k))};
 requestAnimationFrame(t=>{lastT=t;frame(t)});
 
